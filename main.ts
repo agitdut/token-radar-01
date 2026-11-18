@@ -15,6 +15,7 @@ function option(name: string, fallback: string): string {
 }
 
 try {
+  // Default input is the scorer's sealed mount (/input); --input overrides it for local runs.
   const input = resolve(option('input', '/input/snapshot.json'));
   const snapshot = parseSnapshot(readFileSync(statSync(input).isDirectory() ? join(input, 'snapshot.json') : input, 'utf8'));
   const out = resolve(option('output', process.env.MAKEFUN_OUTPUT_DIR || '/output'));

@@ -63,6 +63,7 @@ export function buildRadar(s: Snapshot) {
     const categoryPeers = peers.filter(q => q.category === p.category);
     const rawMedian = categoryPeers.length ? median(categoryPeers.map(q => q.mcap_usd! / q.tvl_usd)) : global;
     // Geometric shrinkage toward global median: n/(n+5) limits sparse-category noise.
+    // The weight is peer-count based, so a category with few comparables stays close to global.
     // Market cap is circulating, not FDV: this is an FDV-like proxy, not observed FDV.
     const weight = categoryPeers.length / (categoryPeers.length + 5);
     const multiple = Math.exp(weight * Math.log(rawMedian) + (1 - weight) * Math.log(global));

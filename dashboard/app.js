@@ -1,4 +1,5 @@
 'use strict';
+// Signal Atlas dashboard: renders window.RADAR from data.js; filters and detail dialog only, no network.
 function start(){
 const data=window.RADAR;if(!data){document.getElementById('rows').innerHTML='<tr><td colspan="7">Snapshot unavailable. Build the entry and serve its output directory.</td></tr>';return;}
 const $=id=>document.getElementById(id),esc=x=>String(x??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

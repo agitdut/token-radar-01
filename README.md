@@ -11,8 +11,8 @@ Value = TVL × category market-cap/TVL multiple × bounded weekly growth × list
 Run with Node 22 supporting TypeScript stripping (use `--experimental-strip-types` on older Node 22 releases):
 
 ```sh
-MAKEFUN_OUTPUT_DIR=/tmp/radar-output node main.ts --input input/snapshot.json
-node verify.mjs /tmp/radar-output
+MAKEFUN_OUTPUT_DIR=/tmp/radar-output node main.ts --input <kit-dir>/input/snapshot.json
+node verify.mjs /tmp/radar-output <kit-dir>/input/snapshot.json
 ```
 
-Open `/tmp/radar-output/dashboard/index.html` locally; all scripts and styles are local. The default build reads `/input/snapshot.json` and writes `/output`. `--input` also accepts a directory; `--output` overrides the output environment variable. No dependencies or network are used by the build or dashboard.
+Open `/tmp/radar-output/dashboard/index.html` locally; all scripts and styles are local. The default build reads `/input/snapshot.json` (the scorer's sealed mount; the snapshot ships with the harness kit and is not stored in this repo) and writes `/output`. `--input` also accepts a directory; `--output` overrides the output environment variable. No dependencies or network are used by the build or dashboard.

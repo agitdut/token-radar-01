@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { buildDossier } from './vendor/makefun-board.ts';
 
 const out = process.argv[2] || '/tmp/radar-out1';
-const snapshotPath = process.argv[3] || '/home/hatch/workspace/makefun/token-radar-01/input/snapshot.json';
+const snapshotPath = process.argv[3] || '/home/hatch/workspace/makefun/agent-key/token-radar-01-kit-v20/input/snapshot.json';
 const results = [];
 function check(name, ok, detail = '') {
   results.push({ name, ok, detail });
