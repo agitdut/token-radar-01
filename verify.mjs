@@ -1,5 +1,5 @@
 // Dev-only local gate check for token-radar-01 (not part of the graded entry).
-// Recorded session rewrite, revision pass.
+// Recorded refactor pass: identifiers clarified, behaviour unchanged.
 // Usage: node main.ts --input input/snapshot.json --output /tmp/radar-out1
 //        node verify.mjs /tmp/radar-out1 [snapshot.json]
 // Re-checks every scorer gate row locally. Exit 1 on any FAIL.
@@ -7,92 +7,93 @@ import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildDossier } from './vendor/makefun-board.ts';
 
-const out = process.argv[2] || '/tmp/radar-out1';
-const snapshotPath = process.argv[3] || '/home/hatch/workspace/makefun/agent-key/token-radar-01-kit-v20/input/snapshot.json';
-const results = [];
+const outputDir = process.argv[2] || '/tmp/radar-out1';
+const snapshotFile = process.argv[3] || '/home/hatch/workspace/makefun/agent-key/token-radar-01-kit-v20/input/snapshot.json';
+const checkResults = [];
 function check(name, ok, detail = '') {
-  results.push({ name, ok, detail });
+  checkResults.push({ name, ok, detail });
   console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`);
 }
-const snap = JSON.parse(readFileSync(snapshotPath, 'utf8'));
-const known = new Set(snap.protocols.map((p) => p.slug));
+const snapshotData = JSON.parse(readFileSync(snapshotFile, 'utf8'));
+const knownSlugs = new Set(snapshotData.protocols.map((protocol) => protocol.slug));
 
 // dashboard_files
 try {
-  const files = readdirSync(join(out, 'dashboard'));
-  const hasHtml = files.includes('index.html');
-  const hasCss = files.some((f) => f.endsWith('.css'));
-  const hasJs = files.some((f) => f.endsWith('.js'));
-  let total = 0, badName = null, netRef = null;
-  for (const f of files) {
-    const st = statSync(join(out, 'dashboard', f));
-    if (!st.isFile()) { badName = f + ' (not a file)'; break; }
-    if (!/^[A-Za-z0-9._-]{1,128}$/.test(f) || f.startsWith('.') || f.startsWith('-')) { badName = f; break; }
-    total += st.size;
-    const text = readFileSync(join(out, 'dashboard', f), 'utf8');
-    if (f.endsWith('.html') && /<(?:a|link|script|img|iframe)[^>]*(?:href|src)\s*=\s*["']https?:\/\//i.test(text)) netRef = f + ' (html attr)';
-    if (f.endsWith('.css') && /https?:\/\//.test(text)) netRef = f + ' (css)';
-    if (f.endsWith('.js') && /(?:from\s+["']|import\s*\(\s*["']|require\s*\(\s*["'])https?:\/\//.test(text)) netRef = f + ' (js import)';
-    if (f.endsWith('.html') && /<style[^>]*>[^<]*https?:\/\//i.test(text)) netRef = f + ' (style body)';
+  const dashboardFiles = readdirSync(join(outputDir, 'dashboard'));
+  const hasIndexHtml = dashboardFiles.includes('index.html');
+  const hasStylesheet = dashboardFiles.some((fileName) => fileName.endsWith('.css'));
+  const hasScript = dashboardFiles.some((fileName) => fileName.endsWith('.js'));
+  let totalBytes = 0, invalidName = null, networkReference = null;
+  for (const fileName of dashboardFiles) {
+    const fileStats = statSync(join(outputDir, 'dashboard', fileName));
+    if (!fileStats.isFile()) { invalidName = fileName + ' (not a file)'; break; }
+    if (!/^[A-Za-z0-9._-]{1,128}$/.test(fileName) || fileName.startsWith('.') || fileName.startsWith('-')) { invalidName = fileName; break; }
+    totalBytes += fileStats.size;
+    const fileText = readFileSync(join(outputDir, 'dashboard', fileName), 'utf8');
+    if (fileName.endsWith('.html') && /<(?:a|link|script|img|iframe)[^>]*(?:href|src)\s*=\s*["']https?:\/\//i.test(fileText)) networkReference = fileName + ' (html attr)';
+    if (fileName.endsWith('.css') && /https?:\/\//.test(fileText)) networkReference = fileName + ' (css)';
+    if (fileName.endsWith('.js') && /(?:from\s+["']|import\s*\(\s*["']|require\s*\(\s*["'])https?:\/\//.test(fileText)) networkReference = fileName + ' (js import)';
+    if (fileName.endsWith('.html') && /<style[^>]*>[^<]*https?:\/\//i.test(fileText)) networkReference = fileName + ' (style body)';
   }
-  const srcTotal = files.reduce((a, f) => a + statSync(join(out, 'dashboard', f)).size, 0);
-  check('dashboard_files', hasHtml && hasCss && hasJs && !badName && !netRef && files.length <= 400 && total <= 4 * 1024 * 1024,
-    `${files.length} files, ${total} bytes, source ${srcTotal} bytes${badName ? ', bad: ' + badName : ''}${netRef ? ', net: ' + netRef : ''}`);
+  const sourceBytes = dashboardFiles.reduce((sum, fileName) => sum + statSync(join(outputDir, 'dashboard', fileName)).size, 0);
+  check('dashboard_files', hasIndexHtml && hasStylesheet && hasScript && !invalidName && !networkReference && dashboardFiles.length <= 400 && totalBytes <= 4 * 1024 * 1024,
+    `${dashboardFiles.length} files, ${totalBytes} bytes, source ${sourceBytes} bytes${invalidName ? ', bad: ' + invalidName : ''}${networkReference ? ', net: ' + networkReference : ''}`);
 } catch (e) { check('dashboard_files', false, String(e)); }
 
 // board_file + sorted_by_value + coverage + farm_steps
 try {
-  const board = JSON.parse(readFileSync(join(out, 'board.json'), 'utf8'));
-  const rows = board.rows;
-  let issue = null;
-  if (!Array.isArray(rows) || rows.length < 100 || rows.length > 4000) issue = `rows=${rows?.length}`;
-  const seen = new Set();
-  const ranked = [...rows].sort((a, b) => a.rank - b.rank);
-  if (!issue) for (const [i, r] of ranked.entries()) {
-    if (!known.has(r.slug) || seen.has(r.slug) || !r.name?.trim()) { issue = `identity ${r.slug}`; break; }
-    seen.add(r.slug);
-    if (!Number.isSafeInteger(r.implied_value_usd) || r.implied_value_usd < 1 || r.implied_value_usd > 1e14) { issue = `value ${r.slug}`; break; }
-    if (r.rank !== i + 1 || (i && ranked[i - 1].implied_value_usd < r.implied_value_usd)) { issue = `rank/order at ${r.slug}`; break; }
-    if (!Array.isArray(r.farm_steps) || r.farm_steps.length < 3 || r.farm_steps.length > 12 ||
-      r.farm_steps.some((t) => typeof t !== 'string' || t.trim().length < 20 || t.trim().length > 600)) { issue = `farm_steps ${r.slug}`; break; }
+  const boardData = JSON.parse(readFileSync(join(outputDir, 'board.json'), 'utf8'));
+  const boardRows = boardData.rows;
+  let boardProblem = null;
+  if (!Array.isArray(boardRows) || boardRows.length < 100 || boardRows.length > 4000) boardProblem = `rows=${boardRows?.length}`;
+  const seenSlugs = new Set();
+  const rankedRows = [...boardRows].sort((first, second) => first.rank - second.rank);
+  if (!boardProblem) for (const [index, row] of rankedRows.entries()) {
+    if (!knownSlugs.has(row.slug) || seenSlugs.has(row.slug) || !row.name?.trim()) { boardProblem = `identity ${row.slug}`; break; }
+    seenSlugs.add(row.slug);
+    if (!Number.isSafeInteger(row.implied_value_usd) || row.implied_value_usd < 1 || row.implied_value_usd > 1e14) { boardProblem = `value ${row.slug}`; break; }
+    if (row.rank !== index + 1 || (index && rankedRows[index - 1].implied_value_usd < row.implied_value_usd)) { boardProblem = `rank/order at ${row.slug}`; break; }
+    if (!Array.isArray(row.farm_steps) || row.farm_steps.length < 3 || row.farm_steps.length > 12 ||
+      row.farm_steps.some((step) => typeof step !== 'string' || step.trim().length < 20 || step.trim().length > 600)) { boardProblem = `farm_steps ${row.slug}`; break; }
   }
-  if (!issue && new Set(rows.map((r) => r.implied_value_usd)).size < 2) issue = 'all values equal';
-  check('board_file', !issue, `${rows.length} rows${issue ? ', ' + issue : ''}`);
-  check('sorted_by_value', !issue, issue || `ranks 1..${rows.length}, non-increasing values`);
-  const missing = snap.watchlist.filter((s) => !seen.has(s));
-  check('coverage', missing.length === 0, missing.length ? `missing: ${missing.join(',')}` : `all ${snap.watchlist.length} watchlist slugs present`);
-  const badSteps = rows.filter((r) => !Array.isArray(r.farm_steps) || r.farm_steps.length < 3 || r.farm_steps.length > 12 ||
-    r.farm_steps.some((t) => typeof t !== 'string' || t.trim().length < 20 || t.trim().length > 600));
-  check('farm_steps', badSteps.length === 0, badSteps.length ? `${badSteps.length} bad rows` : `${rows.length} rows × ${rows[0].farm_steps.length} steps`);
-  const top5 = ranked.slice(0, 5).map((r) => `${r.slug}=$${r.implied_value_usd.toLocaleString('en-US')}`).join(', ');
-  console.log(`INFO top5: ${top5}`);
-  console.log(`INFO board bytes: ${statSync(join(out, 'board.json')).size}`);
+  if (!boardProblem && new Set(boardRows.map((row) => row.implied_value_usd)).size < 2) boardProblem = 'all values equal';
+  check('board_file', !boardProblem, `${boardRows.length} rows${boardProblem ? ', ' + boardProblem : ''}`);
+  check('sorted_by_value', !boardProblem, boardProblem || `ranks 1..${boardRows.length}, non-increasing values`);
+  const missingSlugs = snapshotData.watchlist.filter((slug) => !seenSlugs.has(slug));
+  check('coverage', missingSlugs.length === 0, missingSlugs.length ? `missing: ${missingSlugs.join(',')}` : `all ${snapshotData.watchlist.length} watchlist slugs present`);
+  const invalidStepRows = boardRows.filter((row) => !Array.isArray(row.farm_steps) || row.farm_steps.length < 3 || row.farm_steps.length > 12 ||
+    row.farm_steps.some((step) => typeof step !== 'string' || step.trim().length < 20 || step.trim().length > 600));
+  check('farm_steps', invalidStepRows.length === 0, invalidStepRows.length ? `${invalidStepRows.length} bad rows` : `${boardRows.length} rows × ${boardRows[0].farm_steps.length} steps`);
+  const topFive = rankedRows.slice(0, 5).map((row) => `${row.slug}=$${row.implied_value_usd.toLocaleString('en-US')}`).join(', ');
+  console.log(`INFO top5: ${topFive}`);
+  console.log(`INFO board bytes: ${statSync(join(outputDir, 'board.json')).size}`);
 } catch (e) { check('board_file', false, String(e)); check('sorted_by_value', false, 'no board'); check('coverage', false, 'no board'); check('farm_steps', false, 'no board'); }
 
-// screenshots
+// screenshots: 3–4 JPEG/PNG images, each at most 512 KiB and at least 800px on the short side.
 try {
-  const shots = readdirSync(join(out, 'screenshots')).filter((f) => !f.startsWith('.'));
-  let ok = shots.length >= 3 && shots.length <= 4, detail = `${shots.length} images`;
-  for (const f of shots) {
-    const b = readFileSync(join(out, 'screenshots', f));
-    const isPng = b.readUInt32BE(0) === 0x89504e47;
-    const isJpg = b.readUInt16BE(0) === 0xffd8;
-    let w = 0, h = 0;
-    if (isJpg) { for (let p = 2; p < b.length;) { if (b[p++] !== 0xff) break; while (b[p] === 0xff) p++; const m = b[p++], len = b.readUInt16BE(p); if ([0xc0, 0xc1, 0xc2].includes(m)) { w = b.readUInt16BE(p + 5); h = b.readUInt16BE(p + 3); break; } p += len; } }
-    if (isPng) { w = b.readUInt32BE(16); h = b.readUInt32BE(20); }
-    detail += ` | ${f} ${b.length}B ${w}x${h}`;
-    if ((!isPng && !isJpg) || b.length > 524288 || Math.max(w, h) > 1440 || Math.min(w, h) < 800) ok = false;
+  const shotFiles = readdirSync(join(outputDir, 'screenshots')).filter((fileName) => !fileName.startsWith('.'));
+  let screenshotsOk = shotFiles.length >= 3 && shotFiles.length <= 4;
+  let shotDetail = `${shotFiles.length} images`;
+  for (const fileName of shotFiles) {
+    const imageBytes = readFileSync(join(outputDir, 'screenshots', fileName));
+    const isPngImage = imageBytes.readUInt32BE(0) === 0x89504e47;
+    const isJpegImage = imageBytes.readUInt16BE(0) === 0xffd8;
+    let width = 0, height = 0;
+    if (isJpegImage) { for (let offset = 2; offset < imageBytes.length;) { if (imageBytes[offset++] !== 0xff) break; while (imageBytes[offset] === 0xff) offset++; const markerCode = imageBytes[offset++], segmentLength = imageBytes.readUInt16BE(offset); if ([0xc0, 0xc1, 0xc2].includes(markerCode)) { width = imageBytes.readUInt16BE(offset + 5); height = imageBytes.readUInt16BE(offset + 3); break; } offset += segmentLength; } }
+    if (isPngImage) { width = imageBytes.readUInt32BE(16); height = imageBytes.readUInt32BE(20); }
+    shotDetail += ` | ${fileName} ${imageBytes.length}B ${width}x${height}`;
+    if ((!isPngImage && !isJpegImage) || imageBytes.length > 524288 || Math.max(width, height) > 1440 || Math.min(width, height) < 800) screenshotsOk = false;
   }
-  check('screenshots', ok, detail);
+  check('screenshots', screenshotsOk, shotDetail);
 } catch (e) { check('screenshots', false, String(e)); }
 
 // dossier_matches
 try {
-  const stored = readFileSync(join(out, 'dossier.json'));
-  const rebuilt = buildDossier(out, { text_max_bytes: 65536, screenshots: { max: 3, max_bytes: 524288 }, dashboard: { max_files: 400, max_bytes: 4194304 } });
-  check('dossier_matches', Buffer.compare(stored, rebuilt) === 0 && stored.length <= 1572864, `${stored.length} bytes, rebuild ${rebuilt.length} bytes, identical=${Buffer.compare(stored, rebuilt) === 0}`);
+  const storedDossier = readFileSync(join(outputDir, 'dossier.json'));
+  const rebuiltDossier = buildDossier(outputDir, { text_max_bytes: 65536, screenshots: { max: 3, max_bytes: 524288 }, dashboard: { max_files: 400, max_bytes: 4194304 } });
+  check('dossier_matches', Buffer.compare(storedDossier, rebuiltDossier) === 0 && storedDossier.length <= 1572864, `${storedDossier.length} bytes, rebuild ${rebuiltDossier.length} bytes, identical=${Buffer.compare(storedDossier, rebuiltDossier) === 0}`);
 } catch (e) { check('dossier_matches', false, String(e)); }
 
-const failed = results.filter((r) => !r.ok).length;
-console.log(failed ? `VERIFY: ${failed} FAILED` : 'VERIFY: ALL PASS');
-process.exit(failed ? 1 : 0);
+const failedCount = checkResults.filter((result) => !result.ok).length;
+console.log(failedCount ? `VERIFY: ${failedCount} FAILED` : 'VERIFY: ALL PASS');
+process.exit(failedCount ? 1 : 0);
