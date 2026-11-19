@@ -16,3 +16,4 @@ node verify.mjs /tmp/radar-output <kit-dir>/input/snapshot.json
 ```
 
 Open `/tmp/radar-output/dashboard/index.html` locally; all scripts and styles are local. The default build reads `/input/snapshot.json` (the scorer's sealed mount; the snapshot ships with the harness kit and is not stored in this repo) and writes `/output`. `--input` also accepts a directory; `--output` overrides the output environment variable. No dependencies or network are used by the build or dashboard.
+<!-- Recorded session rewrite, revision pass. -->

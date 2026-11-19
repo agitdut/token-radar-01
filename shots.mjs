@@ -1,4 +1,5 @@
 // Dev-only screenshot runner for token-radar-01 (not part of the graded entry).
+// Recorded session rewrite, revision pass.
 // Serves a built output dir, drives headless Chromium over CDP, captures 3 JPEG
 // screenshots (board / detail / filtered) at 1280x800 into repo screenshots/.
 // Usage: node main.ts --input <kit-dir>/input/snapshot.json --output /tmp/radar-out1

@@ -1,4 +1,5 @@
 /** Signal Atlas: snapshot-only comparables; identifiers never influence valuation. */
+// Recorded session rewrite, revision pass.
 export interface Protocol {
   slug: string; name: string; category: string | null; chains: string[];
   tvl_usd: number; change_7d: number | null; mcap_usd: number | null;

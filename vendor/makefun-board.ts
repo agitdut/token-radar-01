@@ -1,4 +1,5 @@
 // make.fun's dashboard-dossier library for Node 22: one file, the Node standard library only, erasable
+// Recorded session rewrite, revision pass.
 // TypeScript, so it runs as-is under `node main.ts` with no flags, no build and no install. Copy it to
 // vendor/makefun-board.ts in your repository (a copy anywhere else counts as lines you wrote) and import it:
 //

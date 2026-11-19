@@ -1,4 +1,5 @@
 // Dev-only local gate check for token-radar-01 (not part of the graded entry).
+// Recorded session rewrite, revision pass.
 // Usage: node main.ts --input input/snapshot.json --output /tmp/radar-out1
 //        node verify.mjs /tmp/radar-out1 [snapshot.json]
 // Re-checks every scorer gate row locally. Exit 1 on any FAIL.

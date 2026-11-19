@@ -1,4 +1,5 @@
 import { cpSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+// Recorded session rewrite, revision pass.
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseSnapshot, buildRadar, boardIssue, dataScript } from './lib/model.ts';
